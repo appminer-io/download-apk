@@ -1,0 +1,67 @@
+#!/bin/bash
+package=$1
+
+echo "[$(date +%FT%T)] - appminer.io"
+
+if [[ $1 == "--help" ]]
+then
+    echo "You can search for an application using its ID, ex: ./download com.whatsapp"
+    exit 0
+fi
+
+download(){
+echo "[$(date +%FT%T)] - Downloading $package"
+
+apk_path=""
+failed=0
+package_deep_link="https://play.google.com/store/apps/details?id=$package"
+echo "[$(date +%FT%T)] - Package deeplink: $package_deep_link"
+adb shell am start -a android.intent.action.VIEW -d "$package_deep_link"
+adb pull $(adb shell uiautomator dump | grep -oP '[^ ]+.xml') /tmp/view.xml
+coords=$(perl -ne 'printf "%d %d\n", ($1+$3)/2, ($2+$4)/2 if /text="Install"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/' /tmp/view.xml)
+echo "[$(date +%FT%T)] - X,Y to tap $coords"
+echo "[$(date +%FT%T)] - Installing $package"
+
+if [[ -z $coords ]]
+then
+    echo "[$(date +%FT%T)] - This $package might not be compatible with your device"
+    exit 1
+fi
+
+adb shell input touchscreen tap $coords
+
+while [[ -z $apk_path ]]
+do
+    apk_path=$(adb shell pm path $package | awk -F'/' '/base.apk/{print $4}')
+done
+    echo "[$(date +%FT%T)] - APK path: $apk_path"
+
+apk_sb_path="/data/app/$apk_path/base.apk"
+adb shell stat -c %n $apk_sb_path
+
+if [ $? -eq 1 ]
+then
+    failed=1
+fi
+
+while [ $failed -eq 1 ]
+do
+    adb shell stat -c %n $apk_sb_path
+    status=$? 
+    
+    if [ $status -eq 0 ]
+    then
+        failed=0
+    fi
+done
+
+adb pull $apk_sb_path
+
+mv -v base.apk .$package.apk
+
+echo "[$(date +%FT%T)] - Done $package.apk"
+}
+
+download
+
+exit 0
