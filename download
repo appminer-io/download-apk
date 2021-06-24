@@ -57,7 +57,7 @@ done
 
 adb pull $apk_sb_path
 
-mv -v base.apk .$package.apk
+mv -v base.apk $package.apk
 
 echo "[$(date +%FT%T)] - Done $package.apk"
 }
